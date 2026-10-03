@@ -1,0 +1,39 @@
+name: Build UserMode Rootkit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    # 1. Скачиваем исходники из репозитория
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Настраиваем MSBuild для работы в консоли
+      uses: microsoft/setup-msbuild@v2
+
+    # 3. Собираем x64 версию проекта
+    - name: Build Release x64
+      run: |
+        msbuild "Source/Basic Rootkit.sln" /p:Configuration=Release /p:Platform=x64
+
+    # 4. Собираем x86 версию проекта (для 32-битных процессов)
+    - name: Build Release x86
+      run: |
+        msbuild "Source/Basic Rootkit.sln" /p:Configuration=Release /p:Platform=x86
+
+    # 5. Загружаем все скомпилированные DLL и EXE в артефакты GitHub
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: rootkit-compiled-binaries
+        path: |
+          Source/**/Release/*.dll
+          Source/**/Release/*.exe
+          
