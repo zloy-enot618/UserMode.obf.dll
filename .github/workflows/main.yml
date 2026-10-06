@@ -1,39 +1,51 @@
-name: Build UserMode Rootkit
+name: Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build Release / ${{ matrix.platform }}
     runs-on: windows-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ x64, x86 ]
+
     steps:
-    # 1. Скачиваем исходники из репозитория
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # 2. Настраиваем MSBuild для работы в консоли
-      uses: microsoft/setup-msbuild@v2
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-    # 3. Собираем x64 версию проекта
-    - name: Build Release x64
-      run: |
-        msbuild "Source/Basic Rootkit.sln" /p:Configuration=Release /p:Platform=x64
+      - name: Build
+        working-directory: Source
+        shell: pwsh
+        run: >
+          msbuild "Basic Rootkit.sln"
+          /m
+          /p:Configuration=Release
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+          /verbosity:minimal
 
-    # 4. Собираем x86 версию проекта (для 32-битных процессов)
-    - name: Build Release x86
-      run: |
-        msbuild "Source/Basic Rootkit.sln" /p:Configuration=Release /p:Platform=x86
+      - name: Collect DLL to root
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact | Out-Null
+          Get-ChildItem -Path Source -Recurse -Filter *.dll |
+            Where-Object { $_.FullName -notmatch '\\obj\\|\\packages\\' } |
+            Copy-Item -Destination artifact -Force
 
-    # 5. Загружаем все скомпилированные DLL и EXE в артефакты GitHub
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: rootkit-compiled-binaries
-        path: |
-          Source/**/Release/*.dll
-          Source/**/Release/*.exe
-          
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: Basic-Rootkit-Release-${{ matrix.platform }}
+          path: artifact/*.dll
+          if-no-files-found: error
