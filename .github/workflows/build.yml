@@ -1,0 +1,57 @@
+name: C++ CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+        platform: [x64, x86]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.vcxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore NuGet packages
+        run: nuget restore "Basic Rootkit.sln"
+
+      - name: Build
+        run: >
+          msbuild "Basic Rootkit.sln"
+          /m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Basic-Rootkit-${{ matrix.configuration }}-${{ matrix.platform }}
+          path: |
+            'Basic Rootkit/**/*.exe'
+            'Basic Rootkit/**/*.dll'
+            'Basic Rootkit/**/*.sys'
+            'Basic Rootkit/**/*.pdb'
+          if-no-files-found: ignore
