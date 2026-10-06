@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} / ${{ matrix.configuration }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+        platform: [ x64, x86 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        shell: pwsh
+        run: >
+          msbuild "Source\Basic Rootkit.sln"
+          /m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+          /verbosity:minimal
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Basic-Rootkit-${{ matrix.configuration }}-${{ matrix.platform }}
+          path: |
+            Source/**/bin/${{ matrix.configuration }}/**
+            Source/**/x64/${{ matrix.configuration }}/**
+            Source/**/Win32/${{ matrix.configuration }}/**
+          if-no-files-found: warn
