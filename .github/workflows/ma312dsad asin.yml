@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} / ${{ matrix.configuration }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+        platform: [ x64, x86 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        working-directory: Source
+        run: nuget restore "ProcessManager.sln"
+
+      - name: Build
+        working-directory: Source
+        shell: pwsh
+        run: >
+          msbuild "ProcessManager.sln"
+          /m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+          /verbosity:minimal
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProcessManager-${{ matrix.configuration }}-${{ matrix.platform }}
+          # Поправь под свою структуру выходных папок.
+          # Типичные варианты для C++ vcxproj:
+          #   Source/bin/${{ matrix.platform }}/${{ matrix.configuration }}/
+          #   Source/x64/${{ matrix.configuration }}/
+          path: |
+            Source/bin/${{ matrix.platform }}/${{ matrix.configuration }}/**
+            Source/${{ matrix.platform }}/${{ matrix.configuration }}/**
+          if-no-files-found: error
