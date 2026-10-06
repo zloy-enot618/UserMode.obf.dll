@@ -1,0 +1,91 @@
+name: Build Basic Rootkit
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SLN: 'Source\Basic Rootkit.sln'
+  CONFIG: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ x64, Win32 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore
+        run: msbuild "$env:SLN" /t:Restore /p:Configuration=${{ env.CONFIG }} /p:Platform=${{ matrix.platform }} /m
+
+      - name: Build
+        run: msbuild "$env:SLN" /p:Configuration=${{ env.CONFIG }} /p:Platform=${{ matrix.platform }} /m /v:minimal
+
+      - name: Collect binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Get-ChildItem -Recurse -Filter *.exe -File |
+            Where-Object { $_.FullName -match '\\Release\\' -and $_.FullName -notmatch '\\obj\\' } |
+            ForEach-Object {
+              $name = "${{ matrix.platform }}_$($_.Name)"
+              Copy-Item $_.FullName -Destination "dist\$name" -Force
+              Write-Host "copied $name"
+            }
+          Write-Host "--- dist content ---"
+          Get-ChildItem dist | Select-Object Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: basic-rootkit-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten for release
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
