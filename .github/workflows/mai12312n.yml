@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} / ${{ matrix.configuration }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+        platform: [ x64, x86 ]   # в .sln это x64 и x86
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages (если есть packages.config / .vcxproj packages)
+        run: msbuild "Basic Rootkit.sln" /t:Restore /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
+        continue-on-error: true
+
+      - name: Build
+        run: >
+          msbuild "Basic Rootkit.sln"
+          /m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=${{ matrix.platform }}
+          /p:PlatformToolset=v143
+          /verbosity:minimal
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Basic-Rootkit-${{ matrix.configuration }}-${{ matrix.platform }}
+          path: |
+            **/bin/${{ matrix.configuration }}/**
+            **/x64/${{ matrix.configuration }}/**
+            **/Win32/${{ matrix.configuration }}/**
+          if-no-files-found: warn
